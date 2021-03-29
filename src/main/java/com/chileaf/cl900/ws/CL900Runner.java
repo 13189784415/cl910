@@ -61,17 +61,24 @@ public class CL900Runner implements ApplicationRunner {
         });
     }
 
+    /**
+     * type
+     * 1:Heart Rate Device
+     * 2:Rope skipping
+     * 3:cadence
+     * 4:speed
+     */
     private synchronized void parseJson(final ChileafApi api, Object object) {
         try {
             String cmd = api.getCmd();
             String deviceId = api.getDeviceID();
             if (!deviceId.isEmpty() && cmd.equals("01")) {
-                Map<String,String> data = new HashMap<>();
+                Map<String, String> data = new HashMap<>();
                 String deviceType = api.getDeviceType();
                 switch (deviceType) {
                     case "Heart Rate Device":
                         data.put("deviceId", deviceId);
-                        data.put("deviceType", deviceType);
+                        data.put("deviceType", "1");
                         data.put("heartRate", api.getHeartrate());
                         data.put("calorie", api.getCalorie());
                         data.put("step", api.getStep());
@@ -79,20 +86,20 @@ public class CL900Runner implements ApplicationRunner {
                         break;
                     case "Rope skipping":
                         data.put("deviceId", deviceId);
-                        data.put("deviceType", deviceType);
+                        data.put("deviceType", "2");
                         data.put("count", api.getCounter());
                         data.put("time", api.getTime());
                         data.put("rssi", api.getRssi());
                         break;
                     case "cadence":
                         data.put("deviceId", deviceId);
-                        data.put("deviceType", deviceType);
+                        data.put("deviceType", "3");
                         data.put("cadence", api.getCadence());
                         data.put("rssi", api.getRssi());
                         break;
                     case "speed":
                         data.put("deviceId", deviceId);
-                        data.put("deviceType", deviceType);
+                        data.put("deviceType", "4");
                         data.put("speed", api.getSpeed());
                         data.put("rssi", api.getRssi());
                         break;
