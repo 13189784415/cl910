@@ -135,8 +135,8 @@ public class CL900Runner implements ApplicationRunner {
                             long start = mCadence.get(deviceId);
                             long delta = current - start;
                             if (delta > 0) {
-                                //(((delta / 1000) * 1000) / (60 * 60))
-                                int distance = (int) (delta / 3600);
+                                //(((delta / 1000) * 1000) / (60 * 60)) km/h -> m/s
+                                int distance = (int) delta / 3600 * mWheel / 1000;
                                 data.put("distance", distance);
                             } else {
                                 data.put("distance", "");
