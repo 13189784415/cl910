@@ -20,8 +20,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CL900Runner implements ApplicationRunner {
 
     private static final int mWheel = 2340;
-    private static final long mOffline = 10000;
+    private static final long mReset = 5 * 1000;
+    private static final long mOffline = 2 * 60 * 1000;
     private static final ConcurrentHashMap<String, Long> mCadence = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> mSpeed = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> mCacheTime = new ConcurrentHashMap<>();
 
     @Override
@@ -62,6 +64,7 @@ public class CL900Runner implements ApplicationRunner {
                 log.info("移除离线设备:" + next.getKey());
                 mCacheTime.remove(next.getKey());
                 mCadence.remove(next.getKey());
+                mSpeed.remove(next.getKey());
             }
         }
     }
@@ -80,6 +83,7 @@ public class CL900Runner implements ApplicationRunner {
             if (!deviceId.isEmpty() && cmd.equals("01")) {
                 Map<String, Object> data = new HashMap<>();
                 String deviceType = api.getDeviceType();
+                long current = System.currentTimeMillis();
                 switch (deviceType) {
                     case "Heart Rate Device":
                         data.put("deviceId", deviceId);
@@ -115,6 +119,16 @@ public class CL900Runner implements ApplicationRunner {
                         }
                         data.put("deviceName", "Cadence");
                         data.put("cadence", cadence);
+                        //计算距离,记录首次开始时间
+                        if (mCadence.get(deviceId) == null) {
+                            mCadence.put(deviceId, current);
+                            data.put("cadence", 0);
+                        } else {
+                            long delta = current - mCadence.get(deviceId);
+                            if (delta > mReset) {
+                                data.put("cadence", 0);
+                            }
+                        }
                         data.put("rssi", api.getRssi());
                         break;
                     case "speed":
@@ -124,22 +138,20 @@ public class CL900Runner implements ApplicationRunner {
                         if (isNotValid(speed)) {
                             return;
                         }
-                        data.put("deviceName", "Cadence");
+                        data.put("deviceName", "Speed");
                         data.put("speed", speed);
                         //计算距离,记录首次开始时间
-                        long current = System.currentTimeMillis();
-                        if (mCadence.get(deviceId) == null) {
-                            mCadence.put(deviceId, current);
+                        if (mSpeed.get(deviceId) == null) {
+                            mSpeed.put(deviceId, current);
                             data.put("distance", 0);
                         } else {
-                            long start = mCadence.get(deviceId);
-                            long delta = current - start;
-                            if (delta > 0) {
+                            long delta = current - mSpeed.get(deviceId);
+                            if (delta >= mReset) {
+                                data.put("speed", 0);
+                            } else if (delta > 0) {
                                 //(((delta / 1000) * 1000) / (60 * 60)) km/h -> m/s
                                 int distance = (int) delta / 3600 * mWheel / 1000;
                                 data.put("distance", distance);
-                            } else {
-                                data.put("distance", "");
                             }
                         }
                         data.put("rssi", api.getRssi());
@@ -147,7 +159,6 @@ public class CL900Runner implements ApplicationRunner {
                 }
                 if (!data.isEmpty()) {
                     WebSocketServer.sendMessage(JSONObject.toJSONString(data), null);
-                    long current = System.currentTimeMillis();
                     if (mCacheTime.get(deviceId) != null) {
                         mCacheTime.replace(deviceId, current);
                     } else {
