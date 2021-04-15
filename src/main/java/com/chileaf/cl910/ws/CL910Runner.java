@@ -1,9 +1,9 @@
-package com.chileaf.cl900.ws;
+package com.chileaf.cl910.ws;
 
 import com.alibaba.fastjson.JSONObject;
-import com.sdk.common.ChileafApi;
-import com.sdk.common.ChileafApiUtil;
-import com.sdk.common.ChileafCallBack;
+import com.kili.util.ChileafApi;
+import com.kili.util.ChileafApiUtil;
+import com.kili.util.ChileafCallBack;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -17,10 +17,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Order(1)
 @Component
-public class CL900Runner implements ApplicationRunner {
+public class CL910Runner implements ApplicationRunner {
 
+    private float mDistance = 0;
     private static final int mWheel = 2340;
-    private static final long mReset = 5 * 1000;
+    private static final long mReset = 2 * 1000;
+    private static final long mInterval = 3 * 1000;
     private static final long mOffline = 2 * 60 * 1000;
     private static final ConcurrentHashMap<String, Long> mCadence = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Long> mSpeed = new ConcurrentHashMap<>();
@@ -35,7 +37,14 @@ public class CL900Runner implements ApplicationRunner {
             public void run() {
                 checkOffline();
             }
-        }, 0, 5000);
+        }, 0, mInterval);
+        Timer reset = new Timer();
+        reset.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                checkReset();
+            }
+        }, 0, mReset);
         ChileafApi api = ChileafApiUtil.getInstance();
         api.isDubug(false);
         api.setPerimeter(2340);
@@ -47,6 +56,9 @@ public class CL900Runner implements ApplicationRunner {
         });
     }
 
+    /**
+     * 设备超过离线时间需要发送离线消息
+     */
     private synchronized void checkOffline() {
         log.info("缓存设备列表:" + mCacheTime.toString());
         for (Map.Entry<String, Long> next : mCacheTime.entrySet()) {
@@ -70,16 +82,69 @@ public class CL900Runner implements ApplicationRunner {
     }
 
     /**
+     * 设备超过重置时间(3秒)没数据需要清除转速和踏频，保留距离
+     */
+    private synchronized void checkReset() {
+        log.info("设备列表 Cadence:" + mCadence.toString());
+        for (Map.Entry<String, Long> next : mCadence.entrySet()) {
+            long current = System.currentTimeMillis();
+            long time = mCacheTime.get(next.getKey());
+            long delta = current - time;
+            if (delta >= mInterval) {
+                log.info("重置超时设备:" + next.getKey());
+                Map<String, Object> cache = new HashMap<>();
+                cache.put("deviceId", next.getKey());
+                cache.put("deviceName", "Cadence");
+                cache.put("deviceType", "3");
+                cache.put("cadence", 0);
+                cache.put("rssi", 0);
+                try {
+                    WebSocketServer.sendMessage(JSONObject.toJSONString(cache), null);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        log.info("设备列表 Speed:" + mSpeed.toString());
+        for (Map.Entry<String, Long> next : mSpeed.entrySet()) {
+            long current = System.currentTimeMillis();
+            long time = mCacheTime.get(next.getKey());
+            long delta = current - time;
+            if (delta >= mInterval) {
+                log.info("重置超时设备:" + next.getKey());
+                Map<String, Object> cache = new HashMap<>();
+                cache.put("deviceId", next.getKey());
+                cache.put("deviceName", "Speed");
+                cache.put("deviceType", "4");
+                cache.put("distance", "");
+                cache.put("speed", 0);
+                cache.put("rssi", 0);
+                try {
+                    WebSocketServer.sendMessage(JSONObject.toJSONString(cache), null);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    /**
      * type
      * 1:Heart Rate Device
      * 2:Rope skipping
      * 3:cadence
      * 4:speed
      */
+    private int mCount = 0;
+
     private synchronized void parseJson(final ChileafApi api, Object object) {
         try {
             String cmd = api.getCmd();
             String deviceId = api.getDeviceID();
+            if (deviceId.contains("1007")) {
+                this.mCount++;
+            }
+            log.info("设备Id:" + deviceId + "次数:" + mCount);
             if (!deviceId.isEmpty() && cmd.equals("01")) {
                 Map<String, Object> data = new HashMap<>();
                 String deviceType = api.getDeviceType();
@@ -123,11 +188,6 @@ public class CL900Runner implements ApplicationRunner {
                         if (mCadence.get(deviceId) == null) {
                             mCadence.put(deviceId, current);
                             data.put("cadence", 0);
-                        } else {
-                            long delta = current - mCadence.get(deviceId);
-                            if (delta > mReset) {
-                                data.put("cadence", 0);
-                            }
                         }
                         data.put("rssi", api.getRssi());
                         break;
@@ -144,14 +204,16 @@ public class CL900Runner implements ApplicationRunner {
                         if (mSpeed.get(deviceId) == null) {
                             mSpeed.put(deviceId, current);
                             data.put("distance", 0);
+                            mDistance = 0;
                         } else {
-                            long delta = current - mSpeed.get(deviceId);
-                            if (delta >= mReset) {
-                                data.put("speed", 0);
-                            } else if (delta > 0) {
+                            long delta = current - mCacheTime.get(deviceId);
+                            if (delta > 0 && delta < mInterval) {
                                 //(((delta / 1000) * 1000) / (60 * 60)) km/h -> m/s
-                                int distance = (int) delta / 3600 * mWheel / 1000;
-                                data.put("distance", distance);
+                                float distance = delta / 3600f * mWheel / 1000f;
+                                mDistance += distance;
+                                data.put("distance", String.format("%.2f", mDistance));
+                            } else {
+                                data.put("distance", "");
                             }
                         }
                         data.put("rssi", api.getRssi());

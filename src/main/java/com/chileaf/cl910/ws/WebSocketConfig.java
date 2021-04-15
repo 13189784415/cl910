@@ -1,4 +1,4 @@
-package com.chileaf.cl900.ws;
+package com.chileaf.cl910.ws;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

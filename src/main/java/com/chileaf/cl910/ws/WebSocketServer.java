@@ -1,9 +1,7 @@
-package com.chileaf.cl900.ws;
+package com.chileaf.cl910.ws;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import javax.websocket.*;

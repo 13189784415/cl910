@@ -9,9 +9,9 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.chileaf</groupId>
-	<artifactId>cl900</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>CL900</name>
+	<artifactId>cl910</artifactId>
+	<version>1.8</version>
+	<name>CL910</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>1.8</java.version>
